@@ -27,7 +27,9 @@ def encode_image_b64(ref_image):
     return base64_image
 
 
-class RH_LLMAPI_Node():
+class Ollama_LLMAPI_Node():
+    """调用本地 Ollama /api/chat 接口的节点"""
+
     def __init__(self):
         pass
 
@@ -36,7 +38,7 @@ class RH_LLMAPI_Node():
         return {
             "required": {
                 "api_baseurl": ("STRING", {"default": "http://127.0.0.1:11434"}),
-                "model": ("STRING", {"default": "llama3"}),  # 默认使用Ollama本地模型
+                "model": ("STRING", {"default": "llama3"}),  # 默认模型
                 "role": ("STRING", {"multiline": True, "default": "You are a helpful assistant."}),
                 "prompt": ("STRING", {"multiline": True, "default": "Hello"}),
                 "temperature": ("FLOAT", {"default": 0.6}),
@@ -47,17 +49,15 @@ class RH_LLMAPI_Node():
         }
 
     RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("describe",)
-    FUNCTION = "rh_run_llmapi"
-    CATEGORY = "Runninghub"
+    RETURN_NAMES = ("response",)
+    FUNCTION = "run_ollama"
+    CATEGORY = "Ollama"
 
-    def rh_run_llmapi(self, api_baseurl, model, role, prompt, temperature, ref_image=None):
-        """
-        调用 Ollama /api/chat 接口。
-        """
+    def run_ollama(self, api_baseurl, model, role, prompt, temperature, ref_image=None):
+        """调用 Ollama 聊天接口"""
         url = f"{api_baseurl}/api/chat"
 
-        # 构造消息内容
+        # 构造消息
         if ref_image is None:
             messages = [
                 {"role": "system", "content": role},
@@ -65,8 +65,7 @@ class RH_LLMAPI_Node():
             ]
         else:
             base64_image = encode_image_b64(ref_image)
-            # Ollama 尚未官方支持 multimodal image base64，但可以文本提示中嵌入描述性提示
-            # 这里作为示例：将图像base64附在消息中，模型如llava/llama3-vision类才能理解
+            # 对支持多模态的模型（如 llama3.2-vision / llava）有效
             messages = [
                 {"role": "system", "content": role},
                 {"role": "user", "content": f"{prompt}\n[image data: data:image/webp;base64,{base64_image}]"},
@@ -75,7 +74,7 @@ class RH_LLMAPI_Node():
         payload = {
             "model": model,
             "messages": messages,
-            "stream": False,  # 如果想逐步输出改为 True
+            "stream": False,
             "options": {"temperature": temperature},
         }
 
@@ -83,7 +82,6 @@ class RH_LLMAPI_Node():
             resp = requests.post(url, json=payload)
             if resp.status_code == 200:
                 data = resp.json()
-                # Ollama 的结果一般在 message.content 里
                 return (data["message"]["content"],)
             else:
                 return (f"Error {resp.status_code}: {resp.text}",)
