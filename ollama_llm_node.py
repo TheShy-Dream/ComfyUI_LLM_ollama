@@ -87,7 +87,8 @@ class Ollama_LLMAPI_Node:
 
         if response.status_code == 200:
             result = response.json()
-            text = result.get("completion", "No response")
+            # Ollama 的回答在 result['message']['content']
+            text = result.get("message", {}).get("content", "No response")
         else:
             text = f"Error {response.status_code}: {response.text}"
 
