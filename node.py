@@ -1,11 +1,13 @@
-from openai import OpenAI
+import requests
 import time
 from PIL import Image
 import numpy as np
 import base64
 import os
+import torch
 
 def encode_image_b64(ref_image):
+    """将ComfyUI图像tensor编码为base64"""
     i = 255. * ref_image.cpu().numpy()[0]
     img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
 
@@ -21,12 +23,11 @@ def encode_image_b64(ref_image):
     with open(image_path, "rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode('utf-8')
 
-    # print(img_base64)
     os.remove(image_path)
     return base64_image
 
-class RH_LLMAPI_Node():
 
+class RH_LLMAPI_Node():
     def __init__(self):
         pass
 
@@ -34,13 +35,11 @@ class RH_LLMAPI_Node():
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "api_baseurl": ("STRING", {"multiline": True}),
-                "api_key": ("STRING", {"default": ""}),
-                "model": ("STRING", {"default": ""}),
-                "role": ("STRING", {"multiline": True, "default": "You are a helpful assistant"}),
+                "api_baseurl": ("STRING", {"default": "http://127.0.0.1:11434"}),
+                "model": ("STRING", {"default": "llama3"}),  # 默认使用Ollama本地模型
+                "role": ("STRING", {"multiline": True, "default": "You are a helpful assistant."}),
                 "prompt": ("STRING", {"multiline": True, "default": "Hello"}),
                 "temperature": ("FLOAT", {"default": 0.6}),
-                "seed": ("INT", {"default": 100}),
             },
             "optional": {
                 "ref_image": ("IMAGE",),
@@ -52,35 +51,41 @@ class RH_LLMAPI_Node():
     FUNCTION = "rh_run_llmapi"
     CATEGORY = "Runninghub"
 
-    def rh_run_llmapi(self, api_baseurl, api_key, model, role, prompt, temperature, seed, ref_image=None):
+    def rh_run_llmapi(self, api_baseurl, model, role, prompt, temperature, ref_image=None):
+        """
+        调用 Ollama /api/chat 接口。
+        """
+        url = f"{api_baseurl}/api/chat"
 
-        client = OpenAI(api_key=api_key, base_url=api_baseurl)
+        # 构造消息内容
         if ref_image is None:
             messages = [
-                {'role': 'system', 'content': f'{role}'},
-                {'role': 'user', 'content': f'{prompt}'},
+                {"role": "system", "content": role},
+                {"role": "user", "content": prompt},
             ]
         else:
             base64_image = encode_image_b64(ref_image)
+            # Ollama 尚未官方支持 multimodal image base64，但可以文本提示中嵌入描述性提示
+            # 这里作为示例：将图像base64附在消息中，模型如llava/llama3-vision类才能理解
             messages = [
-                {'role': 'system', 'content': f'{role}'},
-                {'role': 'user', 
-                 'content': [
-                        {
-                            "type": "text",
-                            "text": f"{prompt}"
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            }
-                        },
-                    ]},
+                {"role": "system", "content": role},
+                {"role": "user", "content": f"{prompt}\n[image data: data:image/webp;base64,{base64_image}]"},
             ]
-        completion = client.chat.completions.create(model=model, messages=messages, temperature=temperature)
-        if completion is not None and hasattr(completion, 'choices'):
-            prompt = completion.choices[0].message.content
-        else:
-            prompt = 'Error'
-        return (prompt,)
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": False,  # 如果想逐步输出改为 True
+            "options": {"temperature": temperature},
+        }
+
+        try:
+            resp = requests.post(url, json=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                # Ollama 的结果一般在 message.content 里
+                return (data["message"]["content"],)
+            else:
+                return (f"Error {resp.status_code}: {resp.text}",)
+        except Exception as e:
+            return (f"Exception: {str(e)}",)
