@@ -67,7 +67,7 @@ class Ollama_LLMAPI_Node:
             b64_image = encode_image_b64(ref_image)
             data["images"] = [b64_image]
 
-        response = requests.post(f"{api_baseurl}/v1/generate", headers=headers, json=data)
+        response = requests.post(f"{api_baseurl}/api/generate", headers=headers, json=data)
 
         if response.status_code == 200:
             result = response.json()
@@ -77,3 +77,4 @@ class Ollama_LLMAPI_Node:
             text = f"Error {response.status_code}: {response.text}"
 
         return (text,)
+
