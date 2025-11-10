@@ -1,10 +1,11 @@
-from .node import *
+from .ollama_llm_node import Ollama_LLMAPI_Node
 
 NODE_CLASS_MAPPINGS = {
-                        "RH_LLMAPI_NODE": RH_LLMAPI_Node,
-                    }
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "RH_LLMAPI_NODE": "Runninghub LLM API Node",
+    "Ollama_LLMAPI_Node": Ollama_LLMAPI_Node,
 }
 
-__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "Ollama_LLMAPI_Node": "🦙 Ollama LLM API Node",
+}
+
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
