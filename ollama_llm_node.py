@@ -60,7 +60,7 @@ class Ollama_LLMAPI_Node:
             "prompt": prompt,
             "system": system,
             "options": {"temperature": temperature},
-            "stream": False  # 返回完整对象而不是流
+            "stream": False  # 返回完整对象
         }
 
         if ref_image is not None:
@@ -71,7 +71,8 @@ class Ollama_LLMAPI_Node:
 
         if response.status_code == 200:
             result = response.json()
-            text = result.get("message", {}).get("content", "No response")
+            # 新版 Ollama API 返回文本在 'response' 字段
+            text = result.get("response", "No response")
         else:
             text = f"Error {response.status_code}: {response.text}"
 
