@@ -24,7 +24,8 @@ def encode_image_b64(ref_image):
     os.remove(image_path)
     return base64_image
 
-class RH_LLMAPI_Node():
+
+class Ollama_LLMAPI_Node:
 
     def __init__(self):
         pass
@@ -72,7 +73,7 @@ class RH_LLMAPI_Node():
                     {
                         "role": "user",
                         "content": prompt,
-                        "images": [base64_image]  # Ollama 直接接受 Base64 images 列表
+                        "images": [base64_image]
                     }
                 ],
                 "temperature": temperature,
