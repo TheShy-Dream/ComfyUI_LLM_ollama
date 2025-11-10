@@ -1,28 +1,29 @@
 import requests
-import time
+import base64
 from PIL import Image
 import numpy as np
-import base64
 import os
+import time
 
 def encode_image_b64(ref_image):
     i = 255. * ref_image.cpu().numpy()[0]
     img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
 
-    lsize = np.max(img.size)
+    # 限制最大尺寸
+    lsize = max(img.size)
     factor = 1
     while lsize / factor > 2048:
         factor *= 2
     img = img.resize((img.size[0] // factor, img.size[1] // factor))
 
-    image_path = f'{time.time()}.webp'
-    img.save(image_path, 'WEBP')
+    path = f"{time.time()}.webp"
+    img.save(path, "WEBP")
 
-    with open(image_path, "rb") as image_file:
-        base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+    with open(path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode("utf-8")
 
-    os.remove(image_path)
-    return base64_image
+    os.remove(path)
+    return b64
 
 
 class Ollama_LLMAPI_Node:
@@ -36,8 +37,8 @@ class Ollama_LLMAPI_Node:
             "required": {
                 "api_baseurl": ("STRING", {"multiline": True}),
                 "model": ("STRING", {"default": ""}),
-                "role": ("STRING", {"multiline": True, "default": "You are a helpful assistant"}),
                 "prompt": ("STRING", {"multiline": True, "default": "Hello"}),
+                "system": ("STRING", {"multiline": True, "default": "You are a helpful assistant"}),
                 "temperature": ("FLOAT", {"default": 0.6}),
             },
             "optional": {
@@ -50,44 +51,26 @@ class Ollama_LLMAPI_Node:
     FUNCTION = "rh_run_llmapi"
     CATEGORY = "Runninghub"
 
-    def rh_run_llmapi(self, api_baseurl, model, role, prompt, temperature, ref_image=None):
+    def rh_run_llmapi(self, api_baseurl, model, prompt, system, temperature, ref_image=None):
 
-        headers = {
-            "Content-Type": "application/json",
+        headers = {"Content-Type": "application/json"}
+
+        data = {
+            "model": model,
+            "prompt": prompt,
+            "system": system,
+            "options": {"temperature": temperature},
+            "stream": False  # 返回完整对象而不是流
         }
 
-        if ref_image is None:
-            data = {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": role},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": temperature,
-            }
-        else:
-            base64_image = encode_image_b64(ref_image)
-            data = {
-                "model": model,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt,
-                        "images": [base64_image]
-                    }
-                ],
-                "temperature": temperature,
-            }
+        if ref_image is not None:
+            b64_image = encode_image_b64(ref_image)
+            data["images"] = [b64_image]
 
-        response = requests.post(
-            f"{api_baseurl}/v1/completions",
-            headers=headers,
-            json=data
-        )
+        response = requests.post(f"{api_baseurl}/v1/generate", headers=headers, json=data)
 
         if response.status_code == 200:
             result = response.json()
-            # Ollama 的回答在 result['message']['content']
             text = result.get("message", {}).get("content", "No response")
         else:
             text = f"Error {response.status_code}: {response.text}"
